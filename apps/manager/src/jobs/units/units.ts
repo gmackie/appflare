@@ -18,6 +18,7 @@ import {
 import { z } from "zod";
 import type { RemovalRelease } from "../../access/install-access.server";
 import { releaseFetch } from "../../catalog/release-fetch";
+import { catalogGithubFetch } from "../../github/catalog-app.server";
 import { releaseTokenOptions } from "../../github/release-access.server";
 import type { EmailRoutingInspection } from "../../installs/email-routing.server";
 import { sandboxFetch } from "../../sandbox/binding";
@@ -449,7 +450,7 @@ export function artifactFetch(
     case "sandbox":
       return sandboxFetch(env);
     case "catalog":
-      return fetch;
+      return catalogGithubFetch(env, fetch);
   }
 }
 

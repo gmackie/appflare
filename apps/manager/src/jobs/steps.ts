@@ -7,6 +7,7 @@ import { type CloudflareConnection, cloudflareConnection } from "../cloudflare/c
 import { inConnectionWordsOf } from "../cloudflare/sign-in-words.server";
 import { createDb, type Database } from "../db/client";
 import { jobs } from "../db/schema";
+import { catalogGithubFetch } from "../github/catalog-app.server";
 import { errorMessage, JobError, toStepError } from "./errors";
 import { isSubrequestLimitError } from "./install/budget";
 import type { InstallProbeHeaders } from "./install/health";
@@ -145,6 +146,7 @@ export function createJobSteps(ctx: JobContext, jobId: string): JobSteps {
   const baseFetch: FetchLike = budget.countingFetch(
     deps.fetch ?? ((input, init) => fetch(input, init)),
   );
+  const catalogFetch = catalogGithubFetch(env, baseFetch);
   const units = jobUnits(env, {
     // Units run in place (no `SELF`) spend this invocation's requests.
     fetch: baseFetch,
@@ -215,7 +217,7 @@ export function createJobSteps(ctx: JobContext, jobId: string): JobSteps {
 
   const steps: JobSteps = {
     current: "start",
-    baseFetch,
+    baseFetch: catalogFetch,
     now,
     sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
     units: units.remote
@@ -307,7 +309,7 @@ export function createJobSteps(ctx: JobContext, jobId: string): JobSteps {
       try {
         const value = await body({
           log,
-          fetch: baseFetch,
+          fetch: catalogFetch,
           cf: () => client(log),
           cfAs: (token) => {
             if (token.length === 0) throw new JobError("no API token was given for this call");

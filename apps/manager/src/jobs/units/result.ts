@@ -11,6 +11,7 @@ import {
   type CloudflareConnection,
   cloudflareConnection,
 } from "../../cloudflare/connection.server";
+import type { CatalogGithubApp } from "../../github/catalog-app.server";
 import { errorMessage, toStepError } from "../errors";
 import { fetchCost } from "../install/budget";
 import { type LogLine, StepLog } from "../step-log";
@@ -60,7 +61,7 @@ export type UnitResult<T> =
  * its input: the Cloudflare connection (`CF_API_TOKEN`, or the grant in D1
  * sealed with `CF_GRANT_KEY`) among them.
  */
-export interface UnitEnv {
+export interface UnitEnv extends CatalogGithubApp {
   CF_API_TOKEN?: string;
   CF_GRANT_KEY?: string;
   CF_API_BASE_URL?: string;

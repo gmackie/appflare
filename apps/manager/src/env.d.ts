@@ -3,7 +3,8 @@
 // BETTER_AUTH_SECRET (below). Declared on both
 // `Cloudflare.Env` (the type of `import { env } from "cloudflare:workers"`)
 // and the global `Env`.
-interface ManagerSecrets {
+type CatalogGithubAppBindings = import("./github/catalog-app.server").CatalogGithubApp;
+interface ManagerSecrets extends CatalogGithubAppBindings {
   /**
    * Set by the installer; a manager deployed from the "Deploy to Cloudflare"
    * button has none until setup's first step writes one.

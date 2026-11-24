@@ -12,6 +12,7 @@ import {
   withRevisedCatalog,
 } from "@appflare/schema";
 import { createDb } from "../db/client";
+import { type CatalogGithubApp, catalogGithubFetch } from "../github/catalog-app.server";
 import { fetchWhole, verifyArtifactManifest } from "../jobs/install/artifact";
 import { verifyCatalogManifest } from "../sandbox/verify";
 import {
@@ -50,7 +51,7 @@ export function manifestCacheKey(digest: string, catalogId: string = OFFICIAL_CA
 /** Old versions age out of KV on their own. */
 export const MANIFEST_TTL_SECONDS = 60 * 60 * 24 * 30;
 
-export interface AppManifestEnv {
+export interface AppManifestEnv extends CatalogGithubApp {
   KV: KVNamespace;
   /**
    * Where a verified revised catalog manifest is recorded for installs of its
@@ -170,7 +171,10 @@ async function loadRevisedCatalog(
     text = cached;
     catalog = await verifyRevisedCatalog(new TextEncoder().encode(cached), expected);
   } else {
-    const fetchImpl: FetchLike = release.fetch ?? ((input, init) => fetch(input, init));
+    const fetchImpl: FetchLike = catalogGithubFetch(
+      env,
+      release.fetch ?? ((input, init) => fetch(input, init)),
+    );
     const fetched = await fetchWhole(fetchImpl, file.url);
     catalog = await verifyRevisedCatalog(fetched.bytes, expected);
     text = new TextDecoder().decode(fetched.bytes);
@@ -206,7 +210,10 @@ async function getSignedAppManifest(
   const fromCache = cached === null ? null : parse(cached);
   if (fromCache !== null) return { ok: true, manifest: fromCache };
 
-  const fetchImpl: FetchLike = opts.fetch ?? ((input, init) => fetch(input, init));
+  const fetchImpl: FetchLike = catalogGithubFetch(
+    env,
+    opts.fetch ?? ((input, init) => fetch(input, init)),
+  );
   try {
     const [manifestFile, sigFile] = await Promise.all([
       fetchWhole(fetchImpl, release.manifest),
@@ -332,7 +339,10 @@ export async function getCatalogManifest(
   const cached = await env.KV.get(key);
   const fromCache = cached === null ? null : parseCatalog(cached);
   if (fromCache !== null) return { ok: true, catalog: fromCache, manifest: null };
-  const fetchImpl: FetchLike = opts.fetch ?? ((input, init) => fetch(input, init));
+  const fetchImpl: FetchLike = catalogGithubFetch(
+    env,
+    opts.fetch ?? ((input, init) => fetch(input, init)),
+  );
   try {
     const file = await fetchWhole(fetchImpl, build.manifest);
     const catalog = await verifyCatalogManifest(file.bytes, {

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { invalidateScriptsCache } from "../cloudflare/scripts-cache.server";
 import { JOB_KINDS, type JobKind } from "../db/schema";
 import { runMoveAddress } from "../domains/move-address-job";
+import type { CatalogGithubApp } from "../github/catalog-app.server";
 import { notifyJobEnd } from "../notifications/job-end";
 import { runSandboxDisable } from "../sandbox/disable-job";
 import { runSandboxEnable } from "../sandbox/enable-job";
@@ -64,7 +65,7 @@ export const jobParams = z.looseObject({
 export type JobParams = z.infer<typeof jobParams>;
 
 /** Bindings and vars a job reads. */
-export interface JobEnv {
+export interface JobEnv extends CatalogGithubApp {
   DB: D1Database;
   /**
    * The catalog cache: jobs read verified manifests from it by digest, and the
