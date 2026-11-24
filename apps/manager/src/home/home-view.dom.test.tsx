@@ -140,6 +140,7 @@ function render(
   opts: {
     isAdmin?: boolean;
     input?: Partial<AttentionInput>;
+    linkedApps?: { name: string; url: string }[];
     onDismiss?: (row: AccountAttentionRow) => void;
   } = {},
 ) {
@@ -149,6 +150,7 @@ function render(
       <Toasty>
         <HomeView
           apps={apps}
+          linkedApps={opts.linkedApps}
           items={items(apps, { isAdmin, ...opts.input })}
           isAdmin={isAdmin}
           update={update}
@@ -167,6 +169,18 @@ const buttons = (scope: Element | null) =>
 const cards = () => [...container.querySelectorAll("[data-app-card]")];
 
 describe("Home", () => {
+  it("opens an existing deployment directly for a signed-in viewer with no managed installs", () => {
+    render([], {
+      isAdmin: false,
+      linkedApps: [{ name: "Dataflare", url: "https://observe.gmac.io/app" }],
+    });
+    const area = container.querySelector('[aria-label="Existing apps"]');
+    expect(area?.querySelector("a")?.getAttribute("href")).toBe("https://observe.gmac.io/app");
+    expect(area?.textContent).toContain("Dataflare");
+    expect(area?.querySelector('button, a[href^="/install"], a[href^="/apps/"]')).toBeNull();
+    expect(container.textContent).not.toContain("No apps installed yet");
+  });
+
   it("lists what needs attention, most urgent first, with one action each", () => {
     const dismissed: string[] = [];
     render(FULL, { input: FULL_INPUT, onDismiss: (row) => dismissed.push(row.id) });

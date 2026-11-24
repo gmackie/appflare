@@ -1,6 +1,7 @@
 import { Empty, LinkButton } from "@cloudflare/kumo";
 import { PackageIcon, StorefrontIcon } from "@phosphor-icons/react";
 import { useMemo } from "react";
+import { OpenAppButton } from "../components/open-app-button";
 import { PageHeader } from "../components/page-header";
 import type { StartUpdateHandle } from "../components/update-banner";
 import { installLabel } from "../installs/display-name";
@@ -10,7 +11,7 @@ import { type HomeUsageData, type HomeUsageView, homeUsageView } from "../usage/
 import { AppCardUsage, AppCardUsageAction } from "./app-card-usage";
 import { sortedApps, YourApps } from "./app-cards";
 import { type AccountAttentionRow, type AttentionItem, appSignals } from "./attention";
-import type { HomeApp } from "./layout-data";
+import type { HomeApp, LinkedApp } from "./layout-data";
 import { NeedsAttention } from "./needs-attention";
 import { HomeUsageSection } from "./usage-section";
 
@@ -23,6 +24,7 @@ import { HomeUsageSection } from "./usage-section";
  */
 export function HomeView({
   apps,
+  linkedApps = [],
   items,
   isAdmin,
   update,
@@ -32,6 +34,7 @@ export function HomeView({
   usage,
 }: {
   apps: readonly HomeApp[];
+  linkedApps?: readonly LinkedApp[] | undefined;
   items: readonly AttentionItem[];
   isAdmin: boolean;
   update: StartUpdateHandle;
@@ -65,7 +68,7 @@ export function HomeView({
         title="Home"
         description="What needs your attention, and the apps in this Cloudflare account."
         actions={
-          apps.length > 0 ? (
+          apps.length > 0 || linkedApps.length > 0 ? (
             <LinkButton href="/catalog" variant="secondary" icon={<StorefrontIcon />}>
               Catalog
             </LinkButton>
@@ -80,6 +83,25 @@ export function HomeView({
         onUpdateAllOutcome={onUpdateAllOutcome}
       />
       {update.dialog}
+      {linkedApps.length > 0 && (
+        <section aria-label="Existing apps" className="grid gap-3">
+          <h2 className="text-lg font-semibold text-kumo-default">Existing apps</h2>
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {linkedApps.map((app) => (
+              <li
+                key={app.url}
+                className="flex items-center justify-between gap-3 rounded-lg border border-kumo-line bg-kumo-base p-4"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium text-kumo-default">{app.name}</div>
+                  <div className="truncate text-sm text-kumo-subtle">{new URL(app.url).host}</div>
+                </div>
+                <OpenAppButton href={app.url} label={app.name} size="sm" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {apps.length > 0 && usage !== undefined && (
         <HomeUsageSection view={view} needsAccess={needsAccess} isAdmin={isAdmin} />
       )}
@@ -111,7 +133,7 @@ export function HomeView({
             );
           }}
         />
-      ) : (
+      ) : linkedApps.length === 0 ? (
         <Empty
           icon={<PackageIcon size={48} className="text-kumo-inactive" />}
           title="No apps installed yet"
@@ -122,7 +144,7 @@ export function HomeView({
             </LinkButton>
           }
         />
-      )}
+      ) : null}
     </>
   );
 }

@@ -20,7 +20,13 @@ export interface HomeApp extends InstallRow {
   accessRequired?: boolean;
 }
 
+export interface LinkedApp {
+  name: string;
+  url: string;
+}
+
 export interface LayoutData {
+  linkedApps?: LinkedApp[];
   manager: ManagerStatus;
   removedApps: number;
   /** Every install that is not uninstalled, newest first. */

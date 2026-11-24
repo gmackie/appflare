@@ -17,6 +17,10 @@ describe("where / leads", () => {
     expect(homeLanding(4, HOME_CLICK_STATE)).toBe("home");
   });
 
+  it("opens Home directly when only externally managed apps are listed", () => {
+    expect(homeLanding(0, undefined, 1)).toBe("home");
+  });
+
   it("recognises only the Home click's own mark", () => {
     expect(isHomeClick(HOME_CLICK_STATE)).toBe(true);
     expect(isHomeClick({ homeClick: "yes" })).toBe(false);

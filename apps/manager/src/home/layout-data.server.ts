@@ -32,6 +32,7 @@ import { accountAttentionRows } from "./account-attention";
 import type { Downgrade } from "./attention";
 import { readFailedJobs, readUpdateNeeds } from "./attention.server";
 import type { LayoutData } from "./layout-data";
+import { readLinkedApps } from "./linked-apps.server";
 
 /** What the account's rows read of a stored install; `protectedIds` are those Appflare protects. */
 function installOfApp(row: InstallRecord, protectedIds: ReadonlySet<string>): InstallOfApp {
@@ -66,6 +67,7 @@ export async function readLayoutData(session: AuthSession): Promise<LayoutData> 
   // Installs whose entry now requires protection while they are not protected (one query).
   const requiredRead = requiredButUnprotected(env.DB);
   const [
+    linkedApps,
     records,
     rows,
     reads,
@@ -80,6 +82,7 @@ export async function readLayoutData(session: AuthSession): Promise<LayoutData> 
     reconnectNeeded,
     spend,
   ] = await Promise.all([
+    readLinkedApps(env.DB),
     recordsRead,
     rowsRead,
     readsRead,
@@ -129,6 +132,7 @@ export async function readLayoutData(session: AuthSession): Promise<LayoutData> 
       ? null
       : { version: runningVersion(env), deployButton: deployButtonInstalled(env) };
   return {
+    linkedApps,
     manager: {
       current: manager.current,
       latest: manager.latest?.version ?? null,
