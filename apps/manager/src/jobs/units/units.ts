@@ -450,7 +450,7 @@ export function artifactFetch(
     case "sandbox":
       return sandboxFetch(env);
     case "catalog":
-      return catalogGithubFetch(env, fetch);
+      return catalogGithubFetch(env, fetch, count);
   }
 }
 

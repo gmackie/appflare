@@ -1,4 +1,3 @@
-import { generateKeyPairSync, verify } from "node:crypto";
 import type { FetchLike } from "@appflare/cf-api";
 import { expect, it } from "vitest";
 import { catalogGithubFetch } from "./catalog-app.server";
@@ -7,80 +6,69 @@ const repo = "https://api.github.com/repos/appflare/catalog";
 const release = "https://github.com/appflare/catalog/releases/download/example@1.0/";
 const cdn = "https://release-assets.githubusercontent.com/asset";
 
-it("uses expiring read-only credentials for catalog assets and keeps the token off the CDN", async () => {
-  const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
-  const env = {
-    CATALOG_GITHUB_APP_ID: "42",
-    CATALOG_GITHUB_INSTALLATION_ID: "77",
-    CATALOG_GITHUB_PRIVATE_KEY: keys.privateKey.export({ type: "pkcs1", format: "pem" }).toString(),
-  };
-  let now = Date.now();
-  let minted = 0;
+it("uses the Llavero binding for GitHub API reads and preserves range and redirect behavior", async () => {
   let lookups = 0;
-  const inner: FetchLike = async (url, init) => {
-    const h = new Headers(init?.headers);
-    if (url === "https://api.github.com/app/installations/77/access_tokens") {
-      const jwt = h.get("authorization")?.slice(7).split(".");
-      if (!jwt?.[1] || !jwt[2] || jwt.length !== 3) throw new Error("Expected an App JWT");
-      expect(
-        verify(
-          "RSA-SHA256",
-          Buffer.from(jwt.slice(0, 2).join(".")),
-          keys.publicKey,
-          Buffer.from(jwt[2], "base64url"),
-        ),
-      ).toBe(true);
-      const claims = JSON.parse(Buffer.from(jwt[1], "base64url").toString());
-      expect(claims.iss).toBe("42");
-      expect(claims.exp - Math.floor(now / 1000)).toBeLessThanOrEqual(600);
-      expect(JSON.parse(String(init?.body))).toEqual({ permissions: { contents: "read" } });
-      expect(init?.redirect).toBe("manual");
-      minted++;
-      return Response.json({
-        token: `token-${minted}`,
-        expires_at: new Date(now + 3600000).toISOString(),
-      });
-    }
-    if (url === `${repo}/releases/tags/example%401.0`) {
-      expect(h.get("authorization")).toBe(`Bearer token-${minted}`);
+  const broker: FetchLike = async (url, init) => {
+    const headers = new Headers(init?.headers);
+    expect(headers.has("authorization")).toBe(false);
+    if (url === repo + "/releases/tags/example%401.0") {
       lookups++;
       return Response.json({
         assets: [
           { name: "manifest.json", id: 1 },
           { name: "manifest.sig", id: 2 },
-          { name: "example.zip", id: 3 },
         ],
       });
     }
-    if (url.startsWith(`${repo}/releases/assets/`)) {
-      expect(h.get("authorization")).toBe(`Bearer token-${minted}`);
-      expect(h.get("accept")).toBe("application/octet-stream");
-      expect(init?.redirect).toBe("manual");
-      return new Response(null, { status: 302, headers: { location: cdn } });
-    }
-    expect(url).toBe(cdn);
-    expect(h.has("authorization")).toBe(false);
-    return new Response(h.get("range") ?? "manifest");
+    expect([repo + "/releases/assets/1", repo + "/releases/assets/2"]).toContain(url);
+    return new Response(null, { status: 302, headers: { location: cdn } });
   };
-  const fetch = catalogGithubFetch(env, inner, () => now);
+  const publicFetch: FetchLike = async (url, init) => {
+    expect(url).toBe(cdn);
+    const headers = new Headers(init?.headers);
+    expect(headers.has("authorization")).toBe(false);
+    return new Response(headers.get("range") ?? "ok");
+  };
+  const fetch = catalogGithubFetch({ LLAVERO_CATALOG: { fetch: broker } }, publicFetch);
   await Promise.all(
-    ["manifest.json", "manifest.sig"].map(async (name) => {
-      expect(await (await fetch(release + name)).text()).toBe("manifest");
-    }),
+    ["manifest.json", "manifest.sig"].map(async (name) =>
+      expect(await (await fetch(release + name)).text()).toBe("ok"),
+    ),
   );
-  expect(minted).toBe(1);
   expect(lookups).toBe(1);
-  const manually = await fetch(`${release}example.zip`, {
-    redirect: "manual",
-    headers: { Range: "bytes=0-5" },
-  });
-  expect(manually.headers.get("location")).toBe(cdn);
   expect(
-    await (await fetch(`${release}example.zip`, { headers: { Range: "bytes=0-5" } })).text(),
-  ).toBe("bytes=0-5");
-  now += 60 * 60_000;
-  await fetch(`${release}manifest.json`);
-  expect(minted).toBe(2);
+    (await fetch(release + "manifest.json", { redirect: "manual" })).headers.get("location"),
+  ).toBe(cdn);
+  expect(
+    await (await fetch(release + "manifest.json", { headers: { range: "bytes=0-3" } })).text(),
+  ).toBe("bytes=0-3");
+});
+
+it("keeps public downloads available pending installation and surfaces provider errors", async () => {
+  let pending = true;
+  let publicReads = 0;
+  const fetch = catalogGithubFetch(
+    {
+      LLAVERO_CATALOG: {
+        fetch: async () =>
+          pending
+            ? new Response(null, {
+                status: 503,
+                headers: { "X-Llavero-Catalog": "pending-installation" },
+              })
+            : new Response(null, { status: 429 }),
+      },
+    },
+    async (url) => {
+      expect(url).toBe(release + "manifest.json");
+      publicReads++;
+      return new Response("public");
+    },
+  );
+  expect(await (await fetch(release + "manifest.json")).text()).toBe("public");
+  pending = false;
+  await expect(fetch(release + "manifest.json")).rejects.toThrow(/429/);
+  expect(publicReads).toBe(1);
 });
 
 it("passes through unrelated hosts and repositories, and runs anonymously when unconfigured", async () => {
@@ -92,9 +80,11 @@ it("passes through unrelated hosts and repositories, and runs anonymously when u
   };
   const configured = catalogGithubFetch(
     {
-      CATALOG_GITHUB_APP_ID: "1",
-      CATALOG_GITHUB_INSTALLATION_ID: "2",
-      CATALOG_GITHUB_PRIVATE_KEY: "never used",
+      LLAVERO_CATALOG: {
+        fetch: () => {
+          throw new Error("unexpected broker call");
+        },
+      },
     },
     inner,
   );

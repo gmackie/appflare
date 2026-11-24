@@ -1,12 +1,7 @@
-# GitHub App for catalog reads
+# Llavero-managed catalog reads
 
-This fork's manager uses a dedicated GitHub App to fetch releases from the public Appflare and GMAC catalogs. It resolves release tags through GitHub's REST API, fetches manifests, signatures, and archive ranges by asset ID, and verifies artifacts with Appflare's existing signing keys. When the App bindings are absent, the manager uses the public catalog download URLs.
+The GMAC manager uses a private Cloudflare service binding named `LLAVERO_CATALOG` to the `AppflareCatalog` entrypoint on the production `llavero-web` Worker. Llavero's registry defines the GitHub App as `appflare-catalog-github-app`. Its private key is non-deliverable.
 
-1. Register a private GitHub App with **Contents → Read-only**. Disable webhooks. Install it on the manager fork and record the numeric App ID and installation ID. [GitHub registration](https://github.com/settings/apps/new?name=gmackie-appflare-catalog-reader&url=https%3A%2F%2Fapps.gmac.io&public=false&webhook_active=false&contents=read)
-2. Generate a private key under the App's settings. Store the downloaded PEM in the owner's personal Llavero store as `appflare-github-app-private-key`.
-3. Configure the manager Worker's `CATALOG_GITHUB_APP_ID` and `CATALOG_GITHUB_INSTALLATION_ID` bindings with those IDs. Deliver the PEM as the encrypted Worker secret `CATALOG_GITHUB_PRIVATE_KEY`, preserving its line breaks. Apply the three bindings together.
-4. Open a previously uncached catalog entry. A successful load verifies the signed manifest, and the manager caches that version by digest. The install job independently verifies the artifact before deploying.
+Start **Create GitHub App** on the credential in Llavero. Sign in to GitHub as `gmackie` and confirm the registration. GitHub's callback sends the App ID and key directly into Llavero custody. Install the App with read-only Contents on `gmackie/appflare` (repository ID `1469481130`). Llavero discovers that installation and pins each one-hour token to that repository. [Llavero credential](https://keys.gmac.io/credentials/appflare-catalog-github-app)
 
-GitHub issues the installation token for one hour. The manager requests read-only Contents permission, reuses the token in memory, and renews it before expiry. It sends the credential to GitHub's API and follows asset-storage redirects without it. GitHub's primary REST quota applies to authenticated calls. Secondary rate limits can still apply.
-
-To rotate the signing key, generate another key on the same App, replace the PEM in Llavero, and deliver the new Worker secret before retiring the old GitHub key.
+Appflare uses the binding to look up release tags and assets in the public Appflare and GMAC catalogs. Llavero makes the authenticated GitHub requests and renews installation tokens. Appflare follows the resulting storage redirects and verifies signed manifests and artifact hashes. Public downloads also work before the credential has been registered and installed.

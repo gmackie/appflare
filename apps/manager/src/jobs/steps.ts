@@ -146,7 +146,7 @@ export function createJobSteps(ctx: JobContext, jobId: string): JobSteps {
   const baseFetch: FetchLike = budget.countingFetch(
     deps.fetch ?? ((input, init) => fetch(input, init)),
   );
-  const catalogFetch = catalogGithubFetch(env, baseFetch);
+  const catalogFetch = catalogGithubFetch(env, baseFetch, (f) => budget.countingFetch(f));
   const units = jobUnits(env, {
     // Units run in place (no `SELF`) spend this invocation's requests.
     fetch: baseFetch,
